@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-Transition = namedtuple("Transition", "state action reward next_state done")
+Transition = namedtuple("Transition", "state action reward next_state done next_mask")
 
 
 class QNetwork(nn.Module):
@@ -25,9 +25,10 @@ class ReplayBuffer:
     def __init__(self, capacity):
         self.items = deque(maxlen=capacity)
 
-    def add(self, state, action, reward, next_state, done):
+    def add(self, state, action, reward, next_state, done, next_mask):
         self.items.append(Transition(np.array(state, copy=True), action, reward,
-                                     np.array(next_state, copy=True), done))
+                                     np.array(next_state, copy=True), done,
+                                     np.array(next_mask, dtype=np.bool_, copy=True)))
 
     def sample(self, batch_size, device):
         batch = random.sample(self.items, batch_size)
@@ -36,15 +37,16 @@ class ReplayBuffer:
         rewards = torch.as_tensor([item.reward for item in batch], dtype=torch.float32, device=device)
         next_states = torch.as_tensor(np.stack([item.next_state for item in batch]), dtype=torch.float32, device=device).unsqueeze(1)
         dones = torch.as_tensor([item.done for item in batch], dtype=torch.float32, device=device)
-        return states, actions, rewards, next_states, dones
+        next_masks = torch.as_tensor(np.stack([item.next_mask for item in batch]), dtype=torch.bool, device=device)
+        return states, actions, rewards, next_states, dones, next_masks
 
     def __len__(self):
         return len(self.items)
 
 
 class DoubleDQNAgent:
-    def __init__(self, learning_rate=1e-3, gamma=0.99, batch_size=128,
-                 buffer_capacity=50000, target_update_interval=500, device="cpu"):
+    def __init__(self, learning_rate=5e-4, gamma=0.99, batch_size=128,
+                 buffer_capacity=100000, target_update_interval=1000, device="cpu"):
         self.device = torch.device(device)
         self.gamma = gamma
         self.batch_size = batch_size
@@ -57,23 +59,32 @@ class DoubleDQNAgent:
         self.replay = ReplayBuffer(buffer_capacity)
         self.updates = 0
 
-    def act(self, state, epsilon=0.0):
+    def act(self, state, epsilon=0.0, legal_mask=None):
+        if legal_mask is None:
+            legal_mask = np.ones(4, dtype=np.bool_)
+        legal_indices = np.flatnonzero(legal_mask)
+        if len(legal_indices) == 0:
+            legal_indices = np.arange(4)
         if random.random() < epsilon:
-            return random.randrange(4)
+            return int(random.choice(legal_indices.tolist()))
         with torch.no_grad():
             tensor = torch.as_tensor(state, dtype=torch.float32, device=self.device).view(1, 1, 3, 3)
-            return int(self.online(tensor).argmax(dim=1).item())
+            values = self.online(tensor).squeeze(0)
+            mask = torch.as_tensor(legal_mask, dtype=torch.bool, device=self.device)
+            values = values.masked_fill(~mask, torch.finfo(values.dtype).min)
+            return int(values.argmax().item())
 
-    def remember(self, *transition):
-        self.replay.add(*transition)
+    def remember(self, state, action, reward, next_state, done, next_mask):
+        self.replay.add(state, action, reward, next_state, done, next_mask)
 
     def learn(self):
         if len(self.replay) < self.batch_size:
             return None
-        states, actions, rewards, next_states, dones = self.replay.sample(self.batch_size, self.device)
+        states, actions, rewards, next_states, dones, next_masks = self.replay.sample(self.batch_size, self.device)
         current = self.online(states).gather(1, actions.unsqueeze(1)).squeeze(1)
         with torch.no_grad():
-            next_actions = self.online(next_states).argmax(dim=1, keepdim=True)
+            next_online = self.online(next_states).masked_fill(~next_masks, torch.finfo(torch.float32).min)
+            next_actions = next_online.argmax(dim=1, keepdim=True)
             next_values = self.target(next_states).gather(1, next_actions).squeeze(1)
             expected = rewards + self.gamma * next_values * (1.0 - dones)
         loss = nn.functional.smooth_l1_loss(current, expected)

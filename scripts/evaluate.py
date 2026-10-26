@@ -10,8 +10,23 @@ from game2048 import ThreeByThree2048Env
 from game2048.dqn import DoubleDQNAgent
 
 
+def resolve_device(requested):
+    if requested == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            f"CUDA requested but unavailable. torch.version.cuda={torch.version.cuda}; "
+            "check the NVIDIA driver and install a compatible CUDA PyTorch build."
+        )
+    if requested == "auto":
+        requested = "cuda" if torch.cuda.is_available() else "cpu"
+    if requested == "cuda":
+        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        print("Using CPU")
+    return requested
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate a trained 3x3 2048 agent")
+    parser = argparse.ArgumentParser(description="Evaluate a masked Double DQN 3x3 2048 agent")
     parser.add_argument("--checkpoint", default="checkpoints/best.pt")
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--seed", type=int, default=10000)
@@ -21,18 +36,18 @@ def main():
     args = parser.parse_args()
     if args.episodes < 1:
         parser.error("--episodes must be positive")
-    device = "cuda" if args.device == "auto" and torch.cuda.is_available() else args.device
-    if device == "auto":
-        device = "cpu"
+    device = resolve_device(args.device)
     env = ThreeByThree2048Env(max_steps=args.max_steps, render_mode="ansi")
     agent = DoubleDQNAgent(device=device)
     agent.load(args.checkpoint)
     outcomes = []
     for episode in range(args.episodes):
-        state, _ = env.reset(seed=args.seed + episode)
+        state, info = env.reset(seed=args.seed + episode)
+        legal_mask = np.asarray(info["legal_actions"], dtype=np.bool_)
         while True:
-            action = agent.act(state)
+            action = agent.act(state, legal_mask=legal_mask)
             state, _, terminated, truncated, info = env.step(action)
+            legal_mask = np.asarray(info["legal_actions"], dtype=np.bool_)
             if args.render:
                 print(f"episode={episode + 1} step={info['steps']}\n{env.render()}\n")
             if terminated or truncated:

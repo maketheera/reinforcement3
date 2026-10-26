@@ -6,7 +6,7 @@ from gymnasium import spaces
 
 
 class ThreeByThree2048Env(gym.Env):
-    """3x3 2048. Episodes end at game over or the step limit."""
+    """3x3 2048 environment with shaped rewards and legal-action reporting."""
 
     metadata = {"render_modes": ["ansi", "human"]}
 
@@ -27,12 +27,14 @@ class ThreeByThree2048Env(gym.Env):
         self.board = np.zeros((3, 3), dtype=np.int32)
         self.score = 0
         self.steps = 0
+        self.reached_target = False
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         self.board.fill(0)
         self.score = 0
         self.steps = 0
+        self.reached_target = False
         self._spawn_tile()
         self._spawn_tile()
         return self._observation(), self._info()
@@ -40,17 +42,29 @@ class ThreeByThree2048Env(gym.Env):
     def step(self, action):
         if not self.action_space.contains(action):
             raise ValueError("action must be one of 0, 1, 2, 3")
+        old_max = int(self.board.max())
+        old_empty = int(np.count_nonzero(self.board == 0))
+        was_success = self.reached_target
         moved, merge_gain = self._move(int(action))
         if moved:
             self.score += merge_gain
             self._spawn_tile()
         self.steps += 1
         maximum = int(self.board.max())
-        success = maximum >= self.target_tile
-        reward = merge_gain / float(self.target_tile) + (2.0 if success else 0.0)
-        reward += 0.01 if moved else -0.05
+        empty_cells = int(np.count_nonzero(self.board == 0))
+        self.reached_target = self.reached_target or maximum >= self.target_tile
+        new_log = np.log2(maximum) if maximum else 0.0
+        old_log = np.log2(old_max) if old_max else 0.0
+        reward = merge_gain / float(self.target_tile)
+        reward += 0.20 * (new_log - old_log)
+        reward += 0.03 * (empty_cells - old_empty)
+        reward += 0.02 if moved else -0.15
+        if self.reached_target and not was_success:
+            reward += 5.0
         terminated = not self._has_moves()
         truncated = self.steps >= self.max_steps and not terminated
+        if terminated and not self.reached_target:
+            reward -= 1.0
         return self._observation(), float(reward), terminated, truncated, self._info()
 
     def render(self):
@@ -69,8 +83,18 @@ class ThreeByThree2048Env(gym.Env):
     def _info(self):
         maximum = int(self.board.max())
         return {"score": int(self.score), "board_sum": int(self.board.sum()),
-                "max_tile": maximum, "success": maximum >= self.target_tile,
-                "steps": int(self.steps)}
+                "max_tile": maximum, "success": bool(self.reached_target),
+                "steps": int(self.steps), "empty_cells": int(np.count_nonzero(self.board == 0)),
+                "legal_actions": self.legal_actions().tolist()}
+
+    def legal_actions(self):
+        mask = np.zeros(4, dtype=np.bool_)
+        for action in range(4):
+            old_board = self.board.copy()
+            moved, _ = self._move(action)
+            mask[action] = moved
+            self.board = old_board
+        return mask
 
     def _spawn_tile(self):
         empty = np.argwhere(self.board == 0)
@@ -115,7 +139,4 @@ class ThreeByThree2048Env(gym.Env):
         return not np.array_equal(old_board, self.board), merge_gain
 
     def _has_moves(self):
-        if np.any(self.board == 0):
-            return True
-        return bool(np.any(self.board[:, 1:] == self.board[:, :-1]) or
-                    np.any(self.board[1:, :] == self.board[:-1, :]))
+        return bool(np.any(self.board == 0) or np.any(self.legal_actions()))
