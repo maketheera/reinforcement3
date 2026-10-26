@@ -1,2 +1,4 @@
-# GPU PyTorch is provided by environment.yml via the pytorch and nvidia Conda channels.
-# Do not pip-install a second PyTorch wheel into this environment.
+-r requirements.txt
+--index-url https://mirror.nju.edu.cn/pytorch/whl/cu124/
+--extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple
+torch==2.6.0+cu124

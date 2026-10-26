@@ -12,37 +12,39 @@
 
 > 注意：在标准 2048 规则下，棋盘总和只会因新生成的 2/4 增长；合并不改变总和。因此终局总和主要衡量存活并完成了多少次有效移动，而非合并分数。
 
-## GPU 环境（Linux x86_64）
+## 新建 GPU 环境（Mamba + pip）
 
-之前的 2.6.0 Conda 配置有误：PyTorch 从 2.6 起不再发布官方 Conda 二进制包，求解器选中了 conda-forge 的 CPU 构建。安装 `pytorch-cuda` 元包不能改变 CPU 版 PyTorch。
+之前的 Conda 方案解析到了 CPU 构建。现在使用 Mamba 安装 Python、NumPy、Gymnasium、pytest；再用 pip 从南京大学 PyTorch CUDA wheel 镜像安装固定的 `torch 2.6.0+cu124`，并从清华 PyPI 镜像取通用依赖。此方案不会从 Conda 安装 PyTorch。
 
-现在固定官方渠道的 **PyTorch 2.5.1 CUDA 12.4 构建**，新环境名为 `reinforcement3-cu124`。构建约束禁止回退 CPU；找不到匹配包时会报错，不应移除约束。
-
-先预览事务，不下载、不创建环境：
+项目已配置独立环境名 `reinforcement3-pipcuda`，不要覆盖旧环境。先在项目根目录创建基础环境并激活：
 
 ```bash
 source ~/miniforge3/etc/profile.d/conda.sh
-conda deactivate
-mamba env create --strict-channel-priority --dry-run -f environment.yml
+mamba env create -f environment.yml
+conda activate reinforcement3-pipcuda
 ```
 
-确认 `pytorch` 的版本为 `2.5.1`，构建名包含 `cuda12.4`，渠道为 `pytorch`。不能是 `cpu_mkl`。确认后再安装：
+然后安装 CUDA PyTorch：
 
 ```bash
-mamba env create --strict-channel-priority -f environment.yml
-conda activate reinforcement3-cu124
-bash scripts/setup_mamba_gpu.sh
+python -m pip install -r requirements-gpu.txt --timeout 600 --retries 8
 ```
 
-脚本会检查 CUDA 并执行真实 GPU 张量运算。已下载的包可能复用缓存，请保留缓存和原环境；不要覆盖当前激活环境。不要再通过 pip 安装第二套 PyTorch。
+配置的一键脚本 `bash scripts/setup_mamba_gpu.sh` 会在目标环境已激活时执行 pip 安装并验证 CUDA；若没有激活目标环境且 shell 找不到 mamba，会给出提示。
 
-也可手动检查：
+确认不是 CPU 版：
 
 ```bash
 python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available()); print(torch.ones(3, device='cuda').sum().item())"
 ```
 
-预期为 `2.5.1`、`12.4`、`True`、`3.0`。本机没有 Mamba/Linux GPU，配置未实际求解或安装；以服务器 dry-run 及 GPU 运算验证结果为准。
+应看到 `2.6.0+cu124`、`12.4`、`True` 和结果 `3.0`。pip 安装前可用 `--dry-run` 验证候选包：
+
+```bash
+python -m pip install --dry-run -r requirements-gpu.txt
+```
+
+如果 NJU 镜像访问失败，先不要改成普通 PyPI 镜像并安装不带 `+cu124` 的 torch；把报错贴出来再确认可用的 CUDA wheel 源。不要让 pip 和 Conda 同时管理 PyTorch。
 
 ## 验证环境
 
