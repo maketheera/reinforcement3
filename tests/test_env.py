@@ -54,4 +54,5 @@ def test_truncates_at_step_limit():
 
 def test_invalid_target_is_rejected():
     with pytest.raises(ValueError):
-        ThreeByThree2048Env(target_tile=128)
+        ThreeByThree2048Env(target_tile=100)
+
