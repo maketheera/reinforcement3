@@ -1,4 +1,4 @@
-name: reinforcement3-gpu
+name: reinforcement3-cu124
 channels:
   - pytorch
   - nvidia
@@ -10,5 +10,5 @@ dependencies:
   - numpy=1.26
   - gymnasium=0.29.1
   - pytest>=7
-  - pytorch=2.6.0
-  - pytorch-cuda=12.4
+  - "pytorch::pytorch=2.5.1=*cuda12.4*"
+  - pytorch::pytorch-cuda=12.4

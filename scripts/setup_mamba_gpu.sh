@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ENV_NAME="reinforcement3-gpu"
-CHECK='import torch; print("torch:", torch.__version__); print("torch CUDA build:", torch.version.cuda); print("CUDA available:", torch.cuda.is_available()); [print(f"GPU {i}:", torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]; raise SystemExit(0 if torch.cuda.is_available() else "CUDA unavailable; do not start training")'
+ENV_NAME="reinforcement3-cu124"
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+CHECK='import torch; print("torch:", torch.__version__); print("torch CUDA build:", torch.version.cuda); print("CUDA available:", torch.cuda.is_available()); assert torch.cuda.is_available(), "CUDA unavailable; do not start training"; print("CUDA tensor check:", torch.ones(3, device="cuda").sum().item())'
 
 if [[ "${CONDA_DEFAULT_ENV:-}" == "$ENV_NAME" ]]; then
   echo "Checking active environment: ${CONDA_PREFIX:-$ENV_NAME}"

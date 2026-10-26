@@ -12,30 +12,38 @@
 
 > 注意：在标准 2048 规则下，棋盘总和只会因新生成的 2/4 增长；合并不改变总和。因此终局总和主要衡量存活并完成了多少次有效移动，而非合并分数。
 
-## 新建 GPU 环境（推荐）
+## GPU 环境（Linux x86_64）
 
-不要在旧的 `qhxx_env` 继续混装包。`environment.yml` 使用 PyTorch/NVIDIA channels 提供 CUDA 版 PyTorch，基础依赖由 conda-forge 提供。创建时使用严格 channel priority，优先从 `pytorch` channel 选择 PyTorch，避免误选 conda-forge 的 CPU 构建。
+之前的 2.6.0 Conda 配置有误：PyTorch 从 2.6 起不再发布官方 Conda 二进制包，求解器选中了 conda-forge 的 CPU 构建。安装 `pytorch-cuda` 元包不能改变 CPU 版 PyTorch。
+
+现在固定官方渠道的 **PyTorch 2.5.1 CUDA 12.4 构建**，新环境名为 `reinforcement3-cu124`。构建约束禁止回退 CPU；找不到匹配包时会报错，不应移除约束。
+
+先预览事务，不下载、不创建环境：
 
 ```bash
-# 如果尚未初始化 mamba/conda shell，可先运行
 source ~/miniforge3/etc/profile.d/conda.sh
-
-# 在项目根目录创建环境
-mamba env create --strict-channel-priority -f environment.yml
-conda activate reinforcement3-gpu
+conda deactivate
+mamba env create --strict-channel-priority --dry-run -f environment.yml
 ```
 
-确认安装：
+确认 `pytorch` 的版本为 `2.5.1`，构建名包含 `cuda12.4`，渠道为 `pytorch`。不能是 `cpu_mkl`。确认后再安装：
 
 ```bash
-python -c "import torch; print('torch=', torch.__version__); print('torch_cuda=', torch.version.cuda); print('available=', torch.cuda.is_available()); print('count=', torch.cuda.device_count()); print([torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())])"
+mamba env create --strict-channel-priority -f environment.yml
+conda activate reinforcement3-cu124
+bash scripts/setup_mamba_gpu.sh
 ```
 
-必须看到 `torch_cuda=12.4`、`available=True` 和 RTX 3080。单看 `torch=2.6.0` 不够；若 `torch.version.cuda` 是 `None`，安装的是 CPU 版，不要训练。
+脚本会检查 CUDA 并执行真实 GPU 张量运算。已下载的包可能复用缓存，请保留缓存和原环境；不要覆盖当前激活环境。不要再通过 pip 安装第二套 PyTorch。
 
-若环境已经存在，不要重复创建；激活后运行上述检查。`bash scripts/setup_mamba_gpu.sh` 在目标环境已激活时只检查 CUDA，不要求 `mamba` 命令位于 PATH。
+也可手动检查：
 
-下载慢时不要把 PyTorch CUDA wheel 的 `--index-url` 换成普通 PyPI 镜像：普通镜像不一定提供 CUDA wheel。推荐使用 Mamba channels 的环境配置；如果仍然很慢，可在网络较快的机器下载 PyTorch 官方 CUDA 12.4 包及依赖后传至服务器，或使用学校/单位确认包含 `torch 2.6.0+cu124` 的镜像。不要同时用 Conda 和 pip 安装两套 PyTorch。
+```bash
+python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available()); print(torch.ones(3, device='cuda').sum().item())"
+```
+
+预期为 `2.5.1`、`12.4`、`True`、`3.0`。本机没有 Mamba/Linux GPU，配置未实际求解或安装；以服务器 dry-run 及 GPU 运算验证结果为准。
+
 ## 验证环境
 
 ```bash
