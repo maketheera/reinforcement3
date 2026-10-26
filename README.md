@@ -13,7 +13,7 @@
 
 ## 环境安装
 
-建议使用 Python 3.10 或更新版本。Linux 服务器执行：
+建议使用 Python 3.10。`requirements.txt` 将 Gymnasium 固定为 `0.29.1`，因为 Gymnasium 1.4 在部分 Python 3.10 环境中会触发 `typing` 泛型兼容错误。
 
 ```bash
 cd reinforcement3
@@ -21,6 +21,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+如果当前环境已经安装过 Gymnasium 1.4，请先执行：
+
+```bash
+pip uninstall -y gymnasium
+pip install "gymnasium==0.29.1"
 ```
 
 如服务器需要 GPU，请先按 PyTorch 官方安装说明安装与 CUDA 匹配的 PyTorch，再安装其余依赖。CPU 可正常训练，但速度较慢。
@@ -65,12 +72,11 @@ python scripts/evaluate.py --checkpoint checkpoints/best.pt --episodes 1 --rende
 在 `reinforcement` 父目录下：
 
 ```bash
-git init
- git add reinforcement3
- git commit -m "Add 3x3 2048 Double DQN project"
+git add reinforcement3
+git commit -m "Add 3x3 2048 Double DQN project"
 ```
 
-如果父目录已是 Git 仓库，则不需要再次 `git init`。不要上传 `.venv`、训练 checkpoint 或运行日志；`.gitignore` 已排除这些内容。
+如果父目录还没有 Git 仓库，再先执行 `git init`。不要上传 `.venv`、训练 checkpoint 或运行日志；`.gitignore` 已排除这些内容。
 
 ## 项目结构
 
