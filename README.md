@@ -1,4 +1,4 @@
-﻿# 3x3 2048 强化学习
+# 3x3 2048 强化学习
 
 这是一个可独立上传 GitHub、下载到服务器运行的 3×3 2048 强化学习项目。环境遵循 2048 的移动、合并和随机生成规则，智能体使用带合法动作屏蔽的 Double DQN。
 
@@ -12,46 +12,38 @@
 
 > 注意：在标准 2048 规则下，棋盘总和只会因新生成的 2/4 增长；合并不改变总和。因此终局总和主要衡量存活并完成了多少次有效移动，而非合并分数。
 
-## 环境安装
+## 新建 GPU 环境（推荐）
 
-建议使用 Python 3.10。`requirements.txt` 将 Gymnasium 固定为 `0.29.1`，因为 Gymnasium 1.4 在部分 Python 3.10 环境中会触发 `typing` 泛型兼容错误。
+不要继续在原来的 `qhxx_env` 中混装 Conda 与 pip 的 PyTorch。项目使用独立环境 `reinforcement3-gpu`：Mamba 负责 Python、NumPy、Gymnasium 和 pytest，pip 从 PyTorch 官方 CUDA 12.4 wheel 源安装 PyTorch 2.6.0。服务器的 NVIDIA Driver 570.133.07 支持 CUDA 12.4 runtime。
 
-```bash
-cd reinforcement3
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-## GPU 检查与 PyTorch
-
-先检查 NVIDIA 驱动：
+从项目根目录执行：
 
 ```bash
-nvidia-smi
+mamba env create -f environment.yml
+mamba run -n reinforcement3-gpu python -m pip install --upgrade pip
+mamba run -n reinforcement3-gpu python -m pip install -r requirements-gpu.txt --timeout 600 --retries 10
+mamba activate reinforcement3-gpu
 ```
 
-你的服务器显示 NVIDIA Driver `570.133.07`、CUDA `12.8`。安装依赖后检查 PyTorch 是否能调用 GPU：
+也可执行一键脚本：
 
 ```bash
-python -c "import torch; print('torch=', torch.__version__); print('torch_cuda=', torch.version.cuda); print('available=', torch.cuda.is_available()); print('count=', torch.cuda.device_count()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only')"
+bash scripts/setup_mamba_gpu.sh
 ```
 
-必须看到 `available=True`。如果仍然是 `False`，不要直接开始训练；当前 PyTorch 可能是 CUDA 13 构建，与服务器驱动不匹配。请按 PyTorch 官网选择与 CUDA 12.x/驱动兼容的安装命令，或安装服务器管理员提供的 CUDA 12.x 版本 PyTorch。
-
-训练时使用：
+检查安装结果：
 
 ```bash
-python scripts/train.py --episodes 50000 --max-steps 500 --seed 42 --device cuda
+python -c "import torch; print('torch=', torch.__version__); print('torch_cuda=', torch.version.cuda); print('available=', torch.cuda.is_available()); print('count=', torch.cuda.device_count()); print([torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())])"
 ```
 
-脚本会打印 GPU 名称；如果显式指定 `--device cuda` 但 GPU 不可用，程序会立即报错，不会静默退回 CPU。
-
-如果暂时只能使用 CPU：
+必须看到 `torch_cuda=12.4`、`available=True` 和两张 RTX 3080。若不满足，不要训练。测试环境：
 
 ```bash
-python scripts/train.py --episodes 50000 --max-steps 500 --seed 42 --device cpu
+python -m pytest -q
 ```
 
+旧环境不需要删除；新环境成功后可停止使用 `qhxx_env`。
 ## 验证环境
 
 ```bash
@@ -88,7 +80,7 @@ python scripts/evaluate.py --checkpoint checkpoints/best.pt --episodes 100 --see
 源代码和测试应上传；模型 checkpoint 可单独保存。若确认模型文件较小，也可以：
 
 ```bash
-git add src scripts tests README.md requirements.txt
+git add src scripts tests README.md requirements.txt requirements-gpu.txt environment.yml
  git add -f checkpoints/best.pt
 git commit -m "Improve GPU training and legal action masking"
 git push

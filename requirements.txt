@@ -1,4 +1,6 @@
-﻿numpy>=1.23
+﻿# Keep the CUDA PyTorch build separate from the Mamba-managed base packages.
+# Install after creating and activating the Mamba environment:
+# python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+numpy==1.26.4
 gymnasium==0.29.1
-torch>=2.0
 pytest>=7.0

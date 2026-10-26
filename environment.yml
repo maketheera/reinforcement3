@@ -1,0 +1,10 @@
+﻿name: reinforcement3-gpu
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy=1.26
+  - gymnasium=0.29.1
+  - pytest>=7
