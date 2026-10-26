@@ -14,36 +14,28 @@
 
 ## 新建 GPU 环境（推荐）
 
-不要继续在原来的 `qhxx_env` 中混装 Conda 与 pip 的 PyTorch。项目使用独立环境 `reinforcement3-gpu`：Mamba 负责 Python、NumPy、Gymnasium 和 pytest，pip 从 PyTorch 官方 CUDA 12.4 wheel 源安装 PyTorch 2.6.0。服务器的 NVIDIA Driver 570.133.07 支持 CUDA 12.4 runtime。
-
-从项目根目录执行：
+不要在旧的 `qhxx_env` 继续混装包。`environment.yml` 使用 PyTorch/NVIDIA channels 提供 CUDA 版 PyTorch，基础依赖由 conda-forge 提供。创建时使用严格 channel priority，优先从 `pytorch` channel 选择 PyTorch，避免误选 conda-forge 的 CPU 构建。
 
 ```bash
-mamba env create -f environment.yml
-mamba run -n reinforcement3-gpu python -m pip install --upgrade pip
-mamba run -n reinforcement3-gpu python -m pip install -r requirements-gpu.txt --timeout 600 --retries 10
-mamba activate reinforcement3-gpu
+# 如果尚未初始化 mamba/conda shell，可先运行
+source ~/miniforge3/etc/profile.d/conda.sh
+
+# 在项目根目录创建环境
+mamba env create --strict-channel-priority -f environment.yml
+conda activate reinforcement3-gpu
 ```
 
-也可执行一键脚本：
-
-```bash
-bash scripts/setup_mamba_gpu.sh
-```
-
-检查安装结果：
+确认安装：
 
 ```bash
 python -c "import torch; print('torch=', torch.__version__); print('torch_cuda=', torch.version.cuda); print('available=', torch.cuda.is_available()); print('count=', torch.cuda.device_count()); print([torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())])"
 ```
 
-必须看到 `torch_cuda=12.4`、`available=True` 和两张 RTX 3080。若不满足，不要训练。测试环境：
+必须看到 `torch_cuda=12.4`、`available=True` 和 RTX 3080。单看 `torch=2.6.0` 不够；若 `torch.version.cuda` 是 `None`，安装的是 CPU 版，不要训练。
 
-```bash
-python -m pytest -q
-```
+若环境已经存在，不要重复创建；激活后运行上述检查。`bash scripts/setup_mamba_gpu.sh` 在目标环境已激活时只检查 CUDA，不要求 `mamba` 命令位于 PATH。
 
-旧环境不需要删除；新环境成功后可停止使用 `qhxx_env`。
+下载慢时不要把 PyTorch CUDA wheel 的 `--index-url` 换成普通 PyPI 镜像：普通镜像不一定提供 CUDA wheel。推荐使用 Mamba channels 的环境配置；如果仍然很慢，可在网络较快的机器下载 PyTorch 官方 CUDA 12.4 包及依赖后传至服务器，或使用学校/单位确认包含 `torch 2.6.0+cu124` 的镜像。不要同时用 Conda 和 pip 安装两套 PyTorch。
 ## 验证环境
 
 ```bash
